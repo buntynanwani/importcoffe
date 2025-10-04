@@ -49,6 +49,23 @@ services:
     networks:
       - coffe-network
 
+  frontend:
+    restart: always
+    build:
+      context: ./Frontend
+      dockerfile: Dockerfile
+    container_name: Frontend
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./Frontend:/Frontend
+    depends_on:
+      - backend
+    environment:
+      BACKEND_URL: http://Backend:${BACKEND_PORT}
+    networks:
+      - coffe-network
+
 volumes:
   db:
     name: db
