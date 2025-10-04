@@ -1,14 +1,8 @@
-# app.py
-# Streamlit App: Hospital and Missing Points Map with Location Search
-# Author: Generated Example & Gemini Modification
-# English comments, SOLID principles applied
-
 import streamlit as st
 import pandas as pd
 import numpy as np
 import folium
 from streamlit_folium import st_folium
-# NEW IMPORTS for Geocoding
 from geopy.geocoders import Nominatim
 from geopy.exc import GeocoderTimedOut, GeocoderServiceError
 
@@ -25,7 +19,6 @@ def geocode_location(location_name: str) -> tuple[float, float] | None:
     if not location_name:
         return None
     try:
-        # NOTE: Replace 'vitalscan_app' with a unique user_agent for production
         geolocator = Nominatim(user_agent="vitalscan_app") 
         location = geolocator.geocode(location_name, timeout=5)
         if location:
@@ -33,7 +26,6 @@ def geocode_location(location_name: str) -> tuple[float, float] | None:
         else:
             return None
     except (GeocoderTimedOut, GeocoderServiceError, AttributeError):
-        # Handle geocoding errors (e.g., network issues, service unavailability)
         return None
 
 # -----------------------------
@@ -73,16 +65,14 @@ def count_missing(df_missing: pd.DataFrame) -> int:
     return len(df_missing)
 
 # -----------------------------
-# MAP VISUALIZATION FUNCTION
+# MAP VISUALIZATION FUNCTION - MODIFICADA
 # -----------------------------
 
-# CAUTION: Caching this function might prevent map updates when st.session_state changes.
-# For simplicity, we keep it uncached if relying on session state for map center.
-# If performance is an issue, consider passing only necessary, cacheable inputs.
 def create_map(df_hospitals: pd.DataFrame, df_missing: pd.DataFrame, point_filter: str, search_center: tuple[float, float] | None = None) -> folium.Map:
     """
     Create a Folium map showing hospitals and missing points, centered based on
     user search, data points, or a default location.
+    Uses cross icons instead of circles.
     """
     
     # 1. Priority: User search coordinates
@@ -106,7 +96,7 @@ def create_map(df_hospitals: pd.DataFrame, df_missing: pd.DataFrame, point_filte
     # Initialize the map
     m = folium.Map(location=[center_lat, center_lon], zoom_start=zoom_level, tiles="OpenStreetMap")
 
-    # Draw Hospitals (Green)
+    # Draw Hospitals (Green Cross Icon)
     if point_filter in ["All", "Hospitals (Green)"]:
         for _, row in df_hospitals.iterrows():
             popup_text = f"""
@@ -115,25 +105,19 @@ def create_map(df_hospitals: pd.DataFrame, df_missing: pd.DataFrame, point_filte
             Lat: {row['lat']:.4f}<br>
             Lon: {row['lon']:.4f}
             """
-            folium.CircleMarker(
+            folium.Marker(
                 location=[row['lat'], row['lon']],
-                radius=4,
-                color='#28a745', # Bootstrap success green
-                fill=True,
-                fill_opacity=0.8,
-                popup=folium.Popup(popup_text, max_width=300)
+                popup=folium.Popup(popup_text, max_width=300),
+                icon=folium.Icon(color='green', icon='plus', prefix='fa') # Icono de cruz verde
             ).add_to(m)
 
-    # Draw Missing Points (Red)
-    if point_filter in ["All", "Missing Points (Red)"]:
+    # Draw Missing Points (Red Cross Icon)
+    if point_filter in ["All", "Missing Hospitals (Red)"]: # El filtro en el sidebar dice "Missing Hospitals (Red)"
         for _, row in df_missing.iterrows():
-            folium.CircleMarker(
+            folium.Marker(
                 location=[row['lat'], row['lon']],
-                radius=4,
-                color='#dc3545', # Bootstrap danger red
-                fill=True,
-                fill_opacity=0.8,
-                popup="Missing Point"
+                popup="Missing Point",
+                icon=folium.Icon(color='red', icon='plus', prefix='fa') # Icono de cruz roja (times es una "X" o cruz)
             ).add_to(m)
 
     return m
@@ -148,6 +132,7 @@ def main():
         layout="wide",
         page_icon="images/logo.png" # Ensure this path is correct
     )
+    
     
     # Initialize session state variables for search location
     if 'search_location' not in st.session_state:
@@ -215,7 +200,6 @@ def main():
         # Logo and Title
         col_logo, col_title = st.columns([1, 2])
         with col_logo:
-            # Placeholder: Replace with actual logo logic
             st.image("images/logo.png", use_container_width=True) 
         with col_title:
             st.markdown(

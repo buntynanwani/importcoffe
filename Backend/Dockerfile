@@ -1,4 +1,4 @@
-FROM python:3.13-slim AS builder
+FROM python:3.12-slim AS builder
 
 RUN pip install --upgrade pip
 
@@ -12,11 +12,11 @@ ENV PYTHONUNBUFFERED=1
 COPY reqs.txt .
 RUN pip install --no-cache-dir -r reqs.txt
 
-FROM python:3.13-slim
+FROM python:3.12-slim
 
 RUN mkdir /Backend
 
-COPY --from=builder /usr/local/lib/python3.13/site-packages/ /usr/local/lib/python3.13/site-packages/
+COPY --from=builder /usr/local/lib/python3.12/site-packages/ /usr/local/lib/python3.12/site-packages/
 COPY --from=builder  /usr/local/bin/ /usr/local/bin/
 
 COPY . /Backend/
