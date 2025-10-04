@@ -6,29 +6,22 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import pydeck as pdk
+import folium
+from streamlit_folium import st_folium
 
 # -----------------------------
 # DATA GENERATION FUNCTIONS
 # -----------------------------
-
+@st.cache_data
 def generate_hospitals(num_hospitals=20, lat_range=(19.0, 20.0), lon_range=(-99.0, -98.0)) -> pd.DataFrame:
-    """
-    Generate a DataFrame with random hospitals.
-    Single Responsibility: only generates hospital data.
-    """
     data = {
         "name": [f"Hospital {i+1}" for i in range(num_hospitals)],
         "lat": np.random.uniform(lat_range[0], lat_range[1], num_hospitals),
         "lon": np.random.uniform(lon_range[0], lon_range[1], num_hospitals)
     }
     return pd.DataFrame(data)
-
+@st.cache_data
 def generate_missing_points(num_points=10, lat_range=(19.0, 20.0), lon_range=(-99.0, -98.0)) -> pd.DataFrame:
-    """
-    Generate a DataFrame with random points where hospitals are missing.
-    Single Responsibility: only generates missing points.
-    """
     data = {
         "lat": np.random.uniform(lat_range[0], lat_range[1], num_points),
         "lon": np.random.uniform(lon_range[0], lon_range[1], num_points)
@@ -40,83 +33,54 @@ def generate_missing_points(num_points=10, lat_range=(19.0, 20.0), lon_range=(-9
 # -----------------------------
 
 def count_hospitals(df_hospitals: pd.DataFrame) -> int:
-    """Return the number of hospitals."""
     return len(df_hospitals)
 
 def count_missing(df_missing: pd.DataFrame) -> int:
-    """Return the number of missing points."""
     return len(df_missing)
 
 # -----------------------------
 # MAP VISUALIZATION FUNCTION
 # -----------------------------
-def create_map(df_hospitals: pd.DataFrame, df_missing: pd.DataFrame) -> pdk.Deck:
+@st.cache_data
+def create_map(df_hospitals: pd.DataFrame, df_missing: pd.DataFrame) -> folium.Map:
     """
-    Create a PyDeck map showing hospitals and missing points.
-    Single Responsibility: only builds map.
-    Changes applied:
-        - Increased point size for better visibility
-        - Adjusted colors for more contrast
-        - Added HTML tooltips
-        - Set map style for better visual contrast
+    Create a Folium map showing hospitals and missing points.
     """
-    layers = []
+    # Center the map around the average coordinates
+    center_lat = (df_hospitals['lat'].mean() + df_missing['lat'].mean()) / 2
+    center_lon = (df_hospitals['lon'].mean() + df_missing['lon'].mean()) / 2
 
-    # -----------------------------
+    m = folium.Map(location=[center_lat, center_lon], zoom_start=10, tiles="CartoDB positron")
+
     # Hospitals layer (green)
-    # Changes:
-    #   - get_radius increased from 200 -> 400
-    #   - get_color updated to brighter green with higher opacity
-    layers.append(
-        pdk.Layer(
-            "ScatterplotLayer",
-            data=df_hospitals,
-            get_position='[lon, lat]',
-            get_color='[0, 200, 0, 230]',  # brighter green
-            get_radius=400,                 # larger points
-            pickable=True
-        )
-    )
+    for _, row in df_hospitals.iterrows():
+        folium.CircleMarker(
+            location=[row['lat'], row['lon']],
+            radius=8,
+            color='green',
+            fill=True,
+            fill_opacity=0.8,
+            popup=row['name']
+        ).add_to(m)
 
-    # -----------------------------
     # Missing points layer (red)
-    # Changes:
-    #   - get_radius increased from 200 -> 400
-    #   - get_color updated to brighter red with higher opacity
-    layers.append(
-        pdk.Layer(
-            "ScatterplotLayer",
-            data=df_missing,
-            get_position='[lon, lat]',
-            get_color='[255, 50, 50, 230]',  # brighter red
-            get_radius=400,                   # larger points
-            pickable=True
-        )
-    )
+    for _, row in df_missing.iterrows():
+        folium.CircleMarker(
+            location=[row['lat'], row['lon']],
+            radius=8,
+            color='red',
+            fill=True,
+            fill_opacity=0.8,
+            popup="Missing Point"
+        ).add_to(m)
 
-    # Initial view centered on the planet
-    initial_view = pdk.ViewState(
-        latitude=0,       # Center at the equator
-        longitude=0,      # Center at the prime meridian
-        zoom=1,           # Zoom out to see the whole planet
-        pitch=0
-    )
-
-
-    # Create Deck with tooltip
-    # Map style removed or set to default to ensure visibility
-    return pdk.Deck(
-        layers=layers,
-        initial_view_state=initial_view,
-        map_style=None
-    )
+    return m
 
 # -----------------------------
 # STREAMLIT APP
 # -----------------------------
 
 def main():
-    """Main function for the Streamlit app."""
     st.set_page_config(page_title="Hospitals Map", layout="wide")
     st.title("Hospitals and Missing Points Map")
 
@@ -136,8 +100,8 @@ def main():
 
     # Display map
     st.subheader("Interactive Map")
-    deck_map = create_map(df_hospitals, df_missing)
-    st.pydeck_chart(deck_map)
+    folium_map = create_map(df_hospitals, df_missing)
+    st_folium(folium_map, width=700, height=500)
 
 # -----------------------------
 # RUN APP
