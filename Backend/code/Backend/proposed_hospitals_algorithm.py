@@ -1,15 +1,6 @@
-from urllib import request
-from urllib.parse import urlparse
-import os
 import polars as pl
-import os
-import pandas as pd
-import chardet
 import pandas as pd
 import numpy as np
-from geopy.distance import distance
-from .serializers import MedicalCenterSerializer
-from .models import MedicalCenter
 
 def load_data_from_django():
     # Query Django ORM
