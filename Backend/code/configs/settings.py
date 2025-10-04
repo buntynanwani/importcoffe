@@ -13,6 +13,19 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 from pathlib import Path
 import os
 
+# Optional .env support for local development. This will load variables from
+# a .env file at the repository root (c:\importcoffe\.env) if present.
+try:
+    from dotenv import load_dotenv
+    _env_path = Path(__file__).resolve().parents[1] / '..' / '.env'
+    # Normalize path
+    _env_path = _env_path.resolve()
+    if _env_path.exists():
+        load_dotenv(dotenv_path=str(_env_path))
+except Exception:
+    # dotenv is optional; if not installed, environment variables must be set externally
+    pass
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -26,7 +39,12 @@ SECRET_KEY = 'django-insecure-^3$@+1f)^6ja9a--xtcrby$@htyd$%jpwhl_n=n5rqr5fdrp8-
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS").split(",")
+_allowed = os.environ.get("DJANGO_ALLOWED_HOSTS", "")
+# If running in DEBUG and no hosts are provided, allow all hosts for local dev.
+if _allowed:
+    ALLOWED_HOSTS = [h.strip() for h in _allowed.split(",") if h.strip()]
+else:
+    ALLOWED_HOSTS = ["*"] if DEBUG else []
 
 
 # Application definition
@@ -77,16 +95,35 @@ WSGI_APPLICATION = 'configs.wsgi.application'
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
 
-DATABASES = {
-	'default': {
-		'ENGINE': 'django.db.backends.{}'.format(os.environ.get('DATABASE_ENGINE')),
-		'NAME': os.environ.get('POSTGRES_DB'),
-		'USER': os.environ.get('POSTGRES_USER'),
-		'PASSWORD': os.environ.get('POSTGRES_PASSWORD'),
-		'HOST': os.environ.get('DATABASE_HOST'),
-		'PORT': os.environ.get('POSTGRES_PORT'),
-	}
-}
+_db_engine = os.environ.get('DATABASE_ENGINE')
+if _db_engine:
+    # Allow 'sqlite' or 'sqlite3' to explicitly request the sqlite fallback
+    if _db_engine in ('sqlite', 'sqlite3'):
+        DATABASES = {
+            'default': {
+                'ENGINE': 'django.db.backends.sqlite3',
+                'NAME': str(BASE_DIR / 'db.sqlite3'),
+            }
+        }
+    else:
+        DATABASES = {
+            'default': {
+                'ENGINE': f"django.db.backends.{_db_engine}",
+                'NAME': os.environ.get('POSTGRES_DB'),
+                'USER': os.environ.get('POSTGRES_USER'),
+                'PASSWORD': os.environ.get('POSTGRES_PASSWORD'),
+                'HOST': os.environ.get('DATABASE_HOST'),
+                'PORT': os.environ.get('POSTGRES_PORT'),
+            }
+        }
+else:
+    # Fallback to a local sqlite file for quick local development / tests
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': str(BASE_DIR / 'db.sqlite3'),
+        }
+    }
 
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators

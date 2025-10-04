@@ -50,3 +50,33 @@ just_in_case:
 	rm -rf UserMng/code/UserMng/migrations
 
 .PHONY: up down ps create rmi rm logs re reall just_in_case
+
+# Convenience targets to inspect sqlite DB
+db-shell:
+	docker run --rm -v "$(PWD)/Backend:/Backend" --workdir /Backend importcoffe-backend:latest /bin/bash -lc "sqlite3 /Backend/code/db.sqlite3"
+
+db-tables:
+	docker run --rm -v "$(PWD)/Backend:/Backend" --workdir /Backend importcoffe-backend:latest /bin/bash -lc "sqlite3 /Backend/code/db.sqlite3 '.tables'"
+
+# Open the sqlite DB in the host GUI (cross-platform via Python)
+open-db:
+	python - <<PY
+import os,sys,subprocess
+p = os.path.abspath('Backend/code/db.sqlite3')
+if not os.path.exists(p):
+	print('DB not found:', p); sys.exit(1)
+if os.name == 'nt':
+	# Windows
+	try:
+		os.startfile(p)
+	except Exception:
+		subprocess.run(['powershell','-Command',"Start-Process -FilePath '%s'"%p])
+elif sys.platform == 'darwin':
+	subprocess.run(['open', p])
+else:
+	subprocess.run(['xdg-open', p])
+PY
+
+# PowerShell helper: run sqlite3 from PowerShell if installed, otherwise use docker-run fallback
+ps-sqlite:
+	powershell -NoProfile -Command "if (Get-Command sqlite3 -ErrorAction SilentlyContinue) { sqlite3 'Backend\\code\\db.sqlite3' } else { docker run --rm -v \"${PWD}/Backend:/Backend\" --workdir /Backend importcoffe-backend:latest /bin/bash -lc \"sqlite3 /Backend/code/db.sqlite3\" }"

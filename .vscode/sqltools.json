@@ -1,0 +1,10 @@
+{
+  "connections": [
+    {
+      "name": "importcoffe-sqlite",
+      "driver": "SQLite",
+      "database": "${workspaceFolder}/Backend/code/db.sqlite3",
+      "readonly": false
+    }
+  ]
+}

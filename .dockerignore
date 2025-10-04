@@ -1,0 +1,13 @@
+.venv
+venv
+__pycache__
+.git
+*.pyc
+*.sqlite3
+.ipynb_checkpoints
+.env
+Dockerfile
+docker-compose.yaml
+node_modules
+dist
+build

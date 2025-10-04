@@ -30,9 +30,6 @@ services:
       - "${BACKEND_PORT}:${BACKEND_PORT}"
     volumes:
       - ./Backend/code:/Backend/code
-    depends_on:
-      db:
-        condition: service_healthy
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -40,12 +37,15 @@ services:
       POSTGRES_PORT: ${POSTGRES_PORT}
       DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS}
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY}
-      DATABASE_ENGINE: ${DATABASE_ENGINE}
-      DATABASE_HOST: ${DB_HOST}
+      # For quick local testing we can force SQLite so backend doesn't block on Postgres.
+      # Set to 'sqlite' to use the sqlite fallback in settings.py. Change back to 'postgresql' when ready.
+      DATABASE_ENGINE: sqlite
+      DATABASE_HOST: ""
       BACKEND_PORT: ${BACKEND_PORT}
       DJANGO_SUPERUSER_PASSWORD: ${DJANGO_SUPERUSER_PASSWORD}
       DJANGO_SUPERUSER: ${DJANGO_SUPERUSER}
       DJANGO_SUPERUSER_EMAIL: ${DJANGO_SUPERUSER_EMAIL}
+      USE_GUNICORN: ${USE_GUNICORN:-0}
     networks:
       - coffe-network
 

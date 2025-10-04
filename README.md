@@ -45,11 +45,32 @@ We combine **healthcare planning** with **renewable energy infrastructure** to:
 ## 🎯 Project Overview  
 
 The **Smart City Planning Platform** is an interactive, web-based tool that helps:
-- 🏗️ Urban planners  
-- 🧭 Policymakers  
-- 🧑‍🤝‍🧑 Local communities  
 
 …make **data-driven decisions** for healthier, greener cities.
+
+Quick: Inspect the Django sqlite database (development)
+----------------------------------------------------
+
+The Django app uses a local sqlite file during development at `Backend/code/db.sqlite3`.
+
+To open it on your host machine:
+
+- Use the provided helper (cross-platform):
+
+    - On Windows (PowerShell):
+        ```powershell
+        # from repository root
+        Bash -c "./Backend/scripts/open_sqlite.sh"
+        ```
+
+    - On macOS / Linux:
+        ```bash
+        ./Backend/scripts/open_sqlite.sh
+        ```
+
+- Or open `Backend/code/db.sqlite3` directly with any SQLite viewer (DB Browser for SQLite, sqlite3 CLI, etc.).
+
+Note: The sqlite file is created and persisted at `Backend/code/db.sqlite3` so you can inspect it between container restarts.
 
 It leverages **NASA Earth observation data** and **geospatial analysis** to visualize:
 - 🏥 Healthcare infrastructure and underserved zones  

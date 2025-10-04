@@ -1,0 +1,29 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "DB: Open GUI (open-db)",
+      "type": "shell",
+      "command": "make open-db",
+      "problemMatcher": []
+    },
+    {
+      "label": "DB: Open sqlite in PowerShell (ps-sqlite)",
+      "type": "shell",
+      "command": "make ps-sqlite",
+      "problemMatcher": []
+    },
+    {
+      "label": "DB: Shell (db-shell)",
+      "type": "shell",
+      "command": "make db-shell",
+      "problemMatcher": []
+    },
+    {
+      "label": "DB: List tables (db-tables)",
+      "type": "shell",
+      "command": "make db-tables",
+      "problemMatcher": []
+    }
+  ]
+}
