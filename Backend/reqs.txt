@@ -1,0 +1,17 @@
+# django
+Django>=5.0
+
+# Postgres adapter
+psycopg2-binary==2.9.10
+
+# File manipulation in Pyhton
+pillow>=11.1.0
+
+# REST framework
+djangorestframework>=3.15.2
+
+# CORS headers
+django-cors-headers>=4.7
+
+# Request lib
+requests>=2.32.3
