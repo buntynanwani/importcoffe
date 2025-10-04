@@ -1,0 +1,17 @@
+[theme]
+# 💡 CAMBIO DE BRANDING 2: Color principal, usado en botones, sliders, y enlaces.
+# Usamos un Verde Sanitario (#3CB371 - Medium Sea Green)
+primaryColor = "#3CB371" 
+
+# 💡 CAMBIO DE BRANDING 3: Color de fondo secundario, ideal para la sidebar.
+# Ligeramente grisáceo para darle un contraste suave.
+secondaryBackgroundColor = "#f0f2f6" 
+
+# Color de fondo principal (blanco)
+backgroundColor = "#FFFFFF" 
+
+# Color del texto (negro)
+textColor = "#303030" 
+
+# Fuente (opcional: 'serif', 'sans serif', o 'monospace')
+font = "sans serif"
