@@ -19,6 +19,8 @@ RUN mkdir /Backend
 COPY --from=builder /usr/local/lib/python3.12/site-packages/ /usr/local/lib/python3.12/site-packages/
 COPY --from=builder  /usr/local/bin/ /usr/local/bin/
 
+WORKDIR /Backend
+
 COPY . /Backend/
 
 RUN mkdir /Backend/code/static
@@ -30,8 +32,8 @@ RUN mkdir /Backend/code/staticfiles
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1 
 
-RUN chmod +x Backend/script.sh
+RUN chmod +x script.sh
 
-CMD ["Backend/script.sh"]
+CMD ["sh", "./script.sh"]
 
 #CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "3", "Backend.code.configs.wsgi:application"]
