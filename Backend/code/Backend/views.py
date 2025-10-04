@@ -1,3 +1,13 @@
 from django.shortcuts import render
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from .serializers import MedicalCenterSerializer
+from .models import MedicalCenter
 
 # Create your views here.
+class   get_proposed_medical_centers(APIView):
+    def get(self, request):
+        centers = MedicalCenter.objects.all()
+        centers = centers.filter(is_suggested=True)
+        serialized = MedicalCenterSerializer(centers, many=True)
+        return Response(serialized.data)
