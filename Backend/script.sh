@@ -17,20 +17,13 @@ python /Backend/code/manage.py makemigrations --noinput || true
 python /Backend/code/manage.py migrate --noinput --verbosity=3
 
 # Create superuser non-interactively using a small Python snippet that reads env vars
-if [[ -n "${DJANGO_SUPERUSER:-}" ]] && [[ -n "${DJANGO_SUPERUSER_EMAIL:-}" ]]; then
-  echo "Creating superuser ${DJANGO_SUPERUSER} if it does not exist..."
-  python - <<PY
-import os
-from django.contrib.auth import get_user_model
-User = get_user_model()
-username = os.environ.get('DJANGO_SUPERUSER')
-email = os.environ.get('DJANGO_SUPERUSER_EMAIL')
-pw = os.environ.get('DJANGO_SUPERUSER_PASSWORD')
-if not User.objects.filter(username=username).exists():
-    User.objects.create_superuser(username=username, email=email, password=pw)
-else:
-    print('Superuser exists')
-PY
+if [[ -n "${DJANGO_SUPERUSER:-}" ]] || [[ -n "${DJANGO_SUPERUSER_USERNAME:-}" ]]; then
+  # Prefer calling the bundled script which sets up DJANGO_SETTINGS_MODULE and handles updates.
+  echo "Running create_superuser.py to create/update user from env..."
+  if ! python /Backend/scripts/create_superuser.py; then
+    echo "Warning: create_superuser.py failed, continuing" >&2
+  fi
+fi
 fi
 
 if [[ "${USE_GUNICORN:-0}" == "1" ]]; then
