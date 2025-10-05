@@ -8,7 +8,6 @@ from .proposed_hospitals_database import insert_hospitals_into_object
 
 class get_medical_centers(APIView):
     def get(self, request):
-        insert_hospitals_into_object()
         centers = MedicalCenter.objects.all()
         centers = centers.filter(is_suggested=False)
         serialized = MedicalCenterSerializer(centers, many=True)
