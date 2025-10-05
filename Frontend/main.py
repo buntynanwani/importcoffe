@@ -11,7 +11,7 @@ from model import MedicalCenter
 
 # --- CONSTANTS & UTILITY FUNCTIONS ---
 
-API_ENDPOINT = "http://localhost:8000/api/get/get_proposed_medical_centers" # Placeholder URL
+API_ENDPOINT = "http://Backend:8080/api/get_proposed_medical_centers" # Placeholder URL
 
 @st.cache_data
 def geocode_location(location_name: str) -> Tuple[float, float] | None:
@@ -23,7 +23,7 @@ def geocode_location(location_name: str) -> Tuple[float, float] | None:
         return None
     try:
         geolocator = Nominatim(user_agent="vitalscan_app") 
-        location = geolocator.geocode(location_name, timeout=5)
+        location = geolocator.geocode(location_name, timeout=30)
         if location:
             return (location.latitude, location.longitude)
         else:
@@ -53,10 +53,10 @@ def fetch_and_process_missing_points(url: str) -> pd.DataFrame:
     """
     try:
         # 1. Fetch data from the API endpoint
-        response = requests.get(url, timeout=10)
+        response = requests.get(url, timeout=40)
         response.raise_for_status()  # Raise an exception for bad status codes (4xx or 5xx)
         json_data = response.text
-        
+        st.code(response.text, language='json') 
         # 2. Convert JSON string to list of MedicalCenter objects
         centers: List[MedicalCenter] = MedicalCenter.from_json_list(json_data)
         

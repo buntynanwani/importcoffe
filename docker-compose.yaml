@@ -26,6 +26,8 @@ services:
       context: ./Backend
       dockerfile: Dockerfile
     container_name: Backend
+    expose:
+     - ${BACKEND_PORT}
     ports:
       - "${BACKEND_PORT}:${BACKEND_PORT}"
     volumes:
