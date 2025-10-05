@@ -119,8 +119,8 @@ class MedicalCenter:
 
 # --- CONSTANTS & UTILITY FUNCTIONS ---
 
-API_ENDPOINT_MISSING = "http://Backend:8081/api/get_proposed_medical_centers"
-API_ENDPOINT_HOSPITALS = "http://Backend:8081/api/get_medical_centers"
+API_ENDPOINT_MISSING = "http://Backend:8080/api/get_proposed_medical_centers"
+API_ENDPOINT_HOSPITALS = "http://Backend:8080/api/get_medical_centers"
 
 @st.cache_data
 def geocode_location(location_name: str) -> Tuple[float, float] | None:
