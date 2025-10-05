@@ -1,6 +1,7 @@
 import polars as pl
 import pandas as pd
 import numpy as np
+from .models import MedicalCenter
 
 def load_data_from_django():
     # Query Django ORM
@@ -30,15 +31,15 @@ def insert_into_django(df):
     # Map to Django model fields if column names match
     objects = [
         MedicalCenter(
-            type_of_center=rec["type_of_center"],
-            accesibility=rec["accesibility"],
-            name=rec["name"],
-            city=rec["city"],
-            city_district=rec["city_district"],
             latitude=rec["latitude"],
             longitude=rec["longitude"],
-            population_in_district=int(rec["population_in_district"]),
-            street=rec["street"],
+            type_of_center="TODO",
+            accesibility="test",
+            name="PROPOSED HOSPITAL",
+            city="Madrid",
+            city_district=rec["city_district"],
+            population_in_district=0,
+            street="MOCK STREET",
             is_suggested=bool(rec.get("is_suggested", False))  # default if not in df
         )
         for rec in records
@@ -52,11 +53,11 @@ def insert_proposed_hospitals_into_object():
     df = load_data_from_django()
 
     # Step 1: Compute district centroids weighted by population
-    district_centroids = df.to_pandas().groupby('distrito').apply(
+    district_centroids = df.to_pandas().groupby('city_district').apply(
         lambda x: pd.Series({
-            'centroid_lat': np.average(x['lat'], weights=x['population']),
-            'centroid_lon': np.average(x['lon'], weights=x['population']),
-            'total_population': x['population'].sum(),
+            'centroid_lat': np.ma.average(x['latitude'], weights=x['population_in_district'], ),
+            'centroid_lon': np.ma.average(x['longitude'], weights=x['population_in_district']),
+            'total_population': x['population_in_district'].sum(),
             'current_hospitals': len(x)
         })
     ).reset_index()
@@ -82,10 +83,11 @@ def insert_proposed_hospitals_into_object():
             pl.lit(None).alias("street"),
             pl.lit(True).alias("is_suggested")
         ).rename({
-        "distrito": "city_district",
         "proposed_lat": "latitude",
         "proposed_lon": "longitude",
-    })
+    }).drop_nulls()
+
+
 
     insert_into_django(proposals_polars_final)
     

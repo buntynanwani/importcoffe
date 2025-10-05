@@ -5,13 +5,16 @@ import folium
 from streamlit_folium import st_folium
 from geopy.geocoders import Nominatim
 from geopy.exc import GeocoderTimedOut, GeocoderServiceError
+import requests # <-- NEW: Import requests for API calls
+from typing import List, Tuple
+from model import MedicalCenter 
 
-# -----------------------------
-# CONSTANTS & UTILITY FUNCTIONS
-# -----------------------------
+# --- CONSTANTS & UTILITY FUNCTIONS ---
+
+API_ENDPOINT = "http://localhost:8000/api/get/get_proposed_medical_centers" # Placeholder URL
 
 @st.cache_data
-def geocode_location(location_name: str) -> tuple[float, float] | None:
+def geocode_location(location_name: str) -> Tuple[float, float] | None:
     """
     Converts a location name (city, address) into (latitude, longitude) coordinates.
     Uses Nominatim geocoding service.
@@ -28,13 +31,11 @@ def geocode_location(location_name: str) -> tuple[float, float] | None:
     except (GeocoderTimedOut, GeocoderServiceError, AttributeError):
         return None
 
-# -----------------------------
-# DATA GENERATION FUNCTIONS
-# -----------------------------
+# --- DATA ACQUISITION & PROCESSING FUNCTIONS (MODIFIED) ---
 
 @st.cache_data
 def generate_hospitals(num_hospitals=20, lat_range=(19.0, 20.0), lon_range=(-99.0, -98.0), street_address="Av. Central, #123") -> pd.DataFrame:
-    """Generates simulated hospital data points."""
+    """Generates simulated hospital data points (Points in Green)."""
     data = {
         "name": [f"Hospital {i+1}" for i in range(num_hospitals)],
         "lat": np.random.uniform(lat_range[0], lat_range[1], num_hospitals),
@@ -44,17 +45,42 @@ def generate_hospitals(num_hospitals=20, lat_range=(19.0, 20.0), lon_range=(-99.
     return pd.DataFrame(data)
 
 @st.cache_data
-def generate_missing_points(num_points=10, lat_range=(19.0, 20.0), lon_range=(-99.0, -98.0)) -> pd.DataFrame:
-    """Generates simulated missing points data."""
-    data = {
-        "lat": np.random.uniform(lat_range[0], lat_range[1], num_points),
-        "lon": np.random.uniform(lon_range[0], lon_range[1], num_points)
-    }
-    return pd.DataFrame(data)
+def fetch_and_process_missing_points(url: str) -> pd.DataFrame:
+    """
+    NEW FUNCTION: Fetches proposed medical centers from the API,
+    converts them to MedicalCenter objects, and returns a DataFrame for mapping.
+    (These represent the 'Missing Hospitals/Points in Red').
+    """
+    try:
+        # 1. Fetch data from the API endpoint
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()  # Raise an exception for bad status codes (4xx or 5xx)
+        json_data = response.text
+        
+        # 2. Convert JSON string to list of MedicalCenter objects
+        centers: List[MedicalCenter] = MedicalCenter.from_json_list(json_data)
+        
+        # 3. Convert list of objects to a DataFrame for map rendering
+        if not centers:
+            return pd.DataFrame({"lat": [], "lon": []})
+            
+        data = {
+            "lat": [center.latitude for center in centers],
+            "lon": [center.longitude for center in centers]
+            # No name/street needed as it's a "missing" point in the map logic
+        }
+        return pd.DataFrame(data)
 
-# -----------------------------
-# METRICS FUNCTIONS
-# -----------------------------
+    except requests.exceptions.RequestException as e:
+        st.error(f"Error fetching data from API: {e}")
+        return pd.DataFrame({"lat": [], "lon": []})
+    except Exception as e:
+        st.error(f"Error processing medical center data: {e}")
+        return pd.DataFrame({"lat": [], "lon": []})
+
+# # DELETED: The old generate_missing_points function is removed/replaced
+
+# --- METRICS FUNCTIONS ---
 
 def count_hospitals(df_hospitals: pd.DataFrame) -> int:
     """Counts the total number of hospitals."""
@@ -64,11 +90,9 @@ def count_missing(df_missing: pd.DataFrame) -> int:
     """Counts the total number of missing points."""
     return len(df_missing)
 
-# -----------------------------
-# MAP VISUALIZATION FUNCTION - MODIFICADA
-# -----------------------------
+# --- MAP VISUALIZATION FUNCTION ---
 
-def create_map(df_hospitals: pd.DataFrame, df_missing: pd.DataFrame, point_filter: str, search_center: tuple[float, float] | None = None) -> folium.Map:
+def create_map(df_hospitals: pd.DataFrame, df_missing: pd.DataFrame, point_filter: str, search_center: Tuple[float, float] | None = None) -> folium.Map:
     """
     Create a Folium map showing hospitals and missing points, centered based on
     user search, data points, or a default location.
@@ -116,15 +140,13 @@ def create_map(df_hospitals: pd.DataFrame, df_missing: pd.DataFrame, point_filte
         for _, row in df_missing.iterrows():
             folium.Marker(
                 location=[row['lat'], row['lon']],
-                popup="Missing Point",
+                popup=f"Missing Point: Lat {row['lat']:.4f}, Lon {row['lon']:.4f}",
                 icon=folium.Icon(color='red', icon='plus', prefix='fa') # Icono de cruz roja (times es una "X" o cruz)
             ).add_to(m)
 
     return m
 
-# -----------------------------
-# STREAMLIT APP
-# -----------------------------
+# --- STREAMLIT APP ---
 
 def main():
     st.set_page_config(
@@ -265,9 +287,10 @@ def main():
 
     # --- MAIN CONTENT ---
 
-    # Generate data
+    # Generate or fetch data
     df_hospitals = generate_hospitals(30)
-    df_missing = generate_missing_points(50)
+    # MODIFIED: Call the API fetch function instead of random generation
+    df_missing = fetch_and_process_missing_points(API_ENDPOINT) 
 
     # 1. Metrics (using TAILWIND card styling)
     st.markdown("<h2 class='text-2xl font-semibold text-gray-900 mb-4'>Summary Metrics</h2>", unsafe_allow_html=True) 
@@ -301,7 +324,7 @@ def main():
             """, unsafe_allow_html=True
         )
 
-    # Search Controls and Action Buttons (MODIFIED SECTION)
+    # Search Controls and Action Buttons
     with col_search_controls:
         # Use st.text_input for location search
         search_input = st.text_input(
@@ -365,9 +388,8 @@ def main():
     
     st.markdown('</div>', unsafe_allow_html=True) # Close card div
 
-# -----------------------------
-# RUN APP
-# -----------------------------
+# --- RUN APP ---
 
 if __name__ == "__main__":
+    # NOTE: You MUST install the requests library for this to work: pip install requests
     main()
