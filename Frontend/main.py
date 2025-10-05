@@ -6,48 +6,72 @@ from streamlit_folium import st_folium
 from geopy.geocoders import Nominatim
 from geopy.exc import GeocoderTimedOut, GeocoderServiceError
 import requests
+import json
 from typing import List, Tuple
-# from model import MedicalCenter # Asumo que MedicalCenter existe y está definida correctamente
+# from model import MedicalCenter
 
-# --- Definición de MedicalCenter (Placeholder si no tienes el archivo model.py) ---
+# --- MADRID CONSTANTS (NEW) ---
+MADRID_LAT = 40.4168  # Central latitude of Madrid
+MADRID_LON = -3.7038 # Central longitude of Madrid
+# Ranges to generate simulated points near Madrid
+MADRID_LAT_RANGE = (40.35, 40.50)
+MADRID_LON_RANGE = (-3.80, -3.60)
+# -------------------------------------
+
+# --- MedicalCenter Definition (Placeholder) ---
 class MedicalCenter:
-    """Clase placeholder para simular el objeto del backend."""
+    """Placeholder class to simulate the backend object."""
     def __init__(self, lat: float, lon: float):
         self.latitude = lat
         self.longitude = lon
 
     @staticmethod
     def from_json_list(json_data: str) -> List['MedicalCenter']:
-        """Simula la deserialización. Aquí solo devuelve una lista vacía para evitar errores de importación/ejecución si no existe el backend."""
-        # Nota: En una app real, usarías 'json.loads(json_data)' y construirías los objetos.
-        # Aquí se devuelve una lista vacía si la data no es parseable o si el backend no está disponible.
-        # Para propósitos de demostración, se devolverá data simulada si el backend falla.
-        # return []
-        # Simulación de datos si el backend no está levantado
+        """
+        Processes the JSON string from the backend into a list of MedicalCenter objects.
+        If parsing fails, it returns simulated data (fallback).
+        """
+        centers: List['MedicalCenter'] = []
+        try:
+            data = json.loads(json_data)
 
-        # Generar 5 puntos aleatorios si la llamada al API fallara
+            for item in data:
+                if 'latitude' in item and 'longitude' in item:
+                    centers.append(MedicalCenter(
+                        lat=float(item['latitude']),
+                        lon=float(item['longitude'])
+                    ))
+
+            if centers:
+                return centers
+
+            st.warning("Backend returned a valid but empty list. Using simulated data.")
+
+        except json.JSONDecodeError as e:
+            st.error(f"JSON Decode Error, backend response is invalid: {e}")
+        except Exception as e:
+            st.error(f"Error processing JSON structure: {e}")
+
+
+        # Fallback: Generate simulated data (Missing Hospitals - Red)
         num_simulated = 5
         simulated_centers = []
-        lat_range=(19.0, 20.0)
-        lon_range=(-99.0, -98.0)
-        lats = np.random.uniform(lat_range[0], lat_range[1], num_simulated)
-        lons = np.random.uniform(lon_range[0], lon_range[1], num_simulated)
+        # Using Madrid ranges
+        lats = np.random.uniform(MADRID_LAT_RANGE[0], MADRID_LAT_RANGE[1], num_simulated)
+        lons = np.random.uniform(MADRID_LON_RANGE[0], MADRID_LON_RANGE[1], num_simulated)
         for lat, lon in zip(lats, lons):
             simulated_centers.append(MedicalCenter(lat, lon))
+
         return simulated_centers
 # ---------------------------------------------------------------------------------
 
 # --- CONSTANTS & UTILITY FUNCTIONS ---
 
-# Asegúrate de que este URL sea accesible desde el entorno de Streamlit
-API_ENDPOINT = "http://Backend:8080/api/get_proposed_medical_centers"
+API_ENDPOINT = "http://Backend:8081/api/get_proposed_medical_centers"
 
 @st.cache_data
 def geocode_location(location_name: str) -> Tuple[float, float] | None:
-    """
-    Converts a location name (city, address) into (latitude, longitude) coordinates.
-    Uses Nominatim geocoding service.
-    """
+    """Converts a location name (city, address) into (latitude, longitude) coordinates."""
     if not location_name:
         return None
     try:
@@ -63,63 +87,70 @@ def geocode_location(location_name: str) -> Tuple[float, float] | None:
 # --- DATA ACQUISITION & PROCESSING FUNCTIONS ---
 
 @st.cache_data
-def generate_hospitals(num_hospitals=20, lat_range=(19.0, 20.0), lon_range=(-99.0, -98.0), street_address="Av. Central, #123") -> pd.DataFrame:
-    """Generates simulated hospital data points (Points in Green)."""
+def generate_hospitals(num_hospitals=20, lat_range=MADRID_LAT_RANGE, lon_range=MADRID_LON_RANGE, street_address="Av. Central, #123") -> pd.DataFrame:
+    """
+    Generates simulated hospital data points (Green points), using Madrid ranges by default.
+    """
     data = {
         "name": [f"Hospital {i+1}" for i in range(num_hospitals)],
         "lat": np.random.uniform(lat_range[0], lat_range[1], num_hospitals),
         "lon": np.random.uniform(lon_range[0], lon_range[1], num_hospitals),
-        "street": [street_address] * num_hospitals
+        "street": ["Madrid St, #123"] * num_hospitals # Update street address to reflect Madrid
     }
     return pd.DataFrame(data)
 
-# 🚨 CAMBIO CLAVE: Se eliminó @st.cache_data para usar st.session_state 🚨
-def fetch_and_process_missing_points(url: str) -> pd.DataFrame:
+def fetch_and_process_missing_points(url: str) -> Tuple[pd.DataFrame, str]:
     """
-    Fethches proposed medical centers from the API.
-    Returns a DataFrame for mapping.
+    Fetches proposed medical centers from the API.
+    Returns a DataFrame for mapping and the raw JSON data string.
     """
-    st.info("Intentando obtener datos del backend...")
+    st.info("Attempting to get data from the backend...")
+    raw_json_data = ""
 
     try:
         # 1. Fetch data from the API endpoint
-        # NOTA: Si 'http://Backend:8080' es un nombre de servicio de Docker,
-        # puede que necesites el IP directo o un proxy si no estás en la misma red.
         response = requests.get(url, timeout=40)
+<<<<<<< HEAD
         response.raise_for_status()  # Raise an exception for bad status codes (4xx or 5xx)
         json_data = response.text
         st.code(response.text, language='json')
         st.success("✅ Datos obtenidos exitosamente del backend.")
         # Opcional: mostrar la respuesta JSON (comentar en producción)
         # st.code(response.text, language='json')
+=======
+        response.raise_for_status()
+        raw_json_data = response.text
+
+        st.success("✅ Data successfully retrieved from the backend.")
+>>>>>>> 8c79f5392250d2ffe420586615ca626e6f89f907
 
         # 2. Convert JSON string to list of MedicalCenter objects
-        centers: List[MedicalCenter] = MedicalCenter.from_json_list(json_data)
+        centers: List[MedicalCenter] = MedicalCenter.from_json_list(raw_json_data)
 
         # 3. Convert list of objects to a DataFrame for map rendering
         if not centers:
-            st.warning("El backend devolvió una lista vacía de centros.")
-            return pd.DataFrame({"lat": [], "lon": []})
+            return pd.DataFrame({"lat": [], "lon": []}), raw_json_data
 
         data = {
             "lat": [center.latitude for center in centers],
             "lon": [center.longitude for center in centers]
         }
-        return pd.DataFrame(data)
+        return pd.DataFrame(data), raw_json_data
 
     except requests.exceptions.RequestException as e:
-        # st.error(f"❌ Error al obtener datos del API ({url}): {e}")
-        st.warning(f"❌ Fallo de conexión o respuesta del API. Usando datos simulados: {e}")
-        # Retorna data simulada si la conexión falla para no romper la app
-        return MedicalCenter.from_json_list("").pipe(
-            lambda centers: pd.DataFrame({
-                "lat": [c.latitude for c in centers],
-                "lon": [c.longitude for c in centers]
-            })
-        )
+        st.warning(f"❌ Connection or API response failed. Using simulated data: {e}")
+
+        centers = MedicalCenter.from_json_list("")
+
+        data = {
+            "lat": [c.latitude for c in centers],
+            "lon": [c.longitude for c in centers]
+        }
+        return pd.DataFrame(data), f"Connection Failed: {e}"
+
     except Exception as e:
-        st.error(f"❌ Error al procesar los datos recibidos: {e}")
-        return pd.DataFrame({"lat": [], "lon": []})
+        st.error(f"❌ Error processing received data: {e}")
+        return pd.DataFrame({"lat": [], "lon": []}), f"Processing Error: {e}"
 
 # --- METRICS FUNCTIONS ---
 
@@ -134,29 +165,23 @@ def count_missing(df_missing: pd.DataFrame) -> int:
 # --- MAP VISUALIZATION FUNCTION ---
 
 def create_map(df_hospitals: pd.DataFrame, df_missing: pd.DataFrame, point_filter: str, search_center: Tuple[float, float] | None = None) -> folium.Map:
-    """
-    Create a Folium map showing hospitals and missing points.
-    """
+    """Create a Folium map showing hospitals and missing points."""
 
-    # 1. Priority: User search coordinates
+    # 1. Determine Map Center and Zoom
+    # Using Madrid as default center
+    center_lat, center_lon, zoom_level = MADRID_LAT, MADRID_LON, 10
+
     if search_center:
         center_lat, center_lon = search_center
         zoom_level = 12
-
-        # 2. Second priority: Center on existing data points
     elif not df_hospitals.empty or not df_missing.empty:
         all_lats = list(df_hospitals['lat']) + list(df_missing['lat'])
         all_lons = list(df_hospitals['lon']) + list(df_missing['lon'])
-        center_lat = np.mean(all_lats) if all_lats else 19.4326 # Default CDMX
-        center_lon = np.mean(all_lons) if all_lons else -99.1332 # Default CDMX
-        zoom_level = 10
+        center_lat = np.mean(all_lats) if all_lats else center_lat
+        center_lon = np.mean(all_lons) if all_lons else center_lon
+        zoom_level = 11
 
-        # 3. Default center (CDMX area)
-    else:
-        center_lat, center_lon = 19.4326, -99.1332  # Default center (CDMX)
-        zoom_level = 10
-
-        # Initialize the map
+    # Initialize the map
     m = folium.Map(location=[center_lat, center_lon], zoom_start=zoom_level, tiles="OpenStreetMap")
 
     # Draw Hospitals (Green Cross Icon)
@@ -171,16 +196,16 @@ def create_map(df_hospitals: pd.DataFrame, df_missing: pd.DataFrame, point_filte
             folium.Marker(
                 location=[row['lat'], row['lon']],
                 popup=folium.Popup(popup_text, max_width=300),
-                icon=folium.Icon(color='green', icon='plus', prefix='fa') # Icono de cruz verde
+                icon=folium.Icon(color='green', icon='plus', prefix='fa')
             ).add_to(m)
 
-    # Draw Missing Points (Red Cross Icon)
+    # Draw Missing Hospitals (Red Cross Icon)
     if point_filter in ["All", "Missing Hospitals (Red)"]:
         for _, row in df_missing.iterrows():
             folium.Marker(
                 location=[row['lat'], row['lon']],
-                popup=f"Missing Point: Lat {row['lat']:.4f}, Lon {row['lon']:.4f}",
-                icon=folium.Icon(color='red', icon='plus', prefix='fa') # Icono de cruz roja
+                popup=f"Missing Hospital: Lat {row['lat']:.4f}, Lon {row['lon']:.4f}",
+                icon=folium.Icon(color='red', icon='plus', prefix='fa')
             ).add_to(m)
 
     return m
@@ -194,31 +219,27 @@ def main():
         page_icon="images/logo.png"
     )
 
-
-    # Inicialización de la caché y el estado de la aplicación
+    # Initialization of state
     if 'search_location' not in st.session_state:
         st.session_state.search_location = ""
     if 'center_coords' not in st.session_state:
-        st.session_state.center_coords = None # (lat, lon) or None
-
-    # 🚨 NUEVA LÓGICA DE CACHÉ DE SESIÓN PARA LOS DATOS DEL BACKEND 🚨
-    # Inicializar la caché para los datos del backend
+        st.session_state.center_coords = None
     if 'df_missing_cached' not in st.session_state:
         st.session_state.df_missing_cached = None
+    if 'raw_backend_log' not in st.session_state:
+        st.session_state.raw_backend_log = ""
 
-        # 1. Si los datos NO han sido cargados (es la primera ejecución), se hace la llamada al backend.
+    # SESSION CACHE LOGIC FOR BACKEND DATA
     if st.session_state.df_missing_cached is None:
-        # Usamos un spinner para indicar que la llamada al API está en progreso
-        with st.spinner("⏳ Conectando con el backend y cargando puntos faltantes..."):
-            df_missing_data = fetch_and_process_missing_points(API_ENDPOINT)
+        with st.spinner("⏳ Connecting to backend and loading missing hospitals..."):
+            df_missing_data, log_data = fetch_and_process_missing_points(API_ENDPOINT)
 
-        # Almacenamos el resultado (el DataFrame) en la sesión.
-        # Esto provoca una RECARGA IMPLÍCITA con los datos listos.
         st.session_state.df_missing_cached = df_missing_data
+        st.session_state.raw_backend_log = log_data
 
-    # 2. Usar los datos cacheados para el resto del script
+    # Use cached data
     df_missing = st.session_state.df_missing_cached
-
+    raw_backend_log = st.session_state.raw_backend_log
     # -------------------------------------------------------------
 
     # --- INYECTAR TAILWIND CDN Y OVERRIDES CSS ---
@@ -254,7 +275,7 @@ def main():
             """, unsafe_allow_html=True
         )
 
-    st.title("Hospitals and Missing Points Map")
+    st.title("Hospitals and Missing Hospitals Map")
 
     # --- SIDEBAR (Navigation/Control Panel) ---
     with st.sidebar:
@@ -298,12 +319,16 @@ def main():
             help="Select which types of points to display on the map."
         )
 
+        # --- RAW DATA LOG ---
+        st.markdown("<hr class='border-gray-600'>", unsafe_allow_html=True)
+        st.subheader("Backend Raw Data Log")
+
+        st.code(raw_backend_log, language='json')
+
+
     # --- MAIN CONTENT ---
 
-    # Generar data de hospitales (esta sí usa @st.cache_data, lo cual es correcto)
     df_hospitals = generate_hospitals(30)
-
-    # df_missing ya está definida con el valor de st.session_state.df_missing_cached
 
     # 1. Metrics
     st.markdown("<h2 class='text-2xl font-semibold text-gray-900 mb-4'>Summary Metrics</h2>", unsafe_allow_html=True)
@@ -328,7 +353,7 @@ def main():
             f"""
             <div class="bg-white rounded-xl shadow-lg p-6 flex flex-col justify-between h-full">
                 <div class="text-sm text-gray-500 mb-1 flex items-center">
-                    <i class="fas fa-map-marker-slash text-lg mr-2 text-red-600"></i> Missing Points
+                    <i class="fas fa-map-marker-slash text-lg mr-2 text-red-600"></i> Missing Hospitals
                 </div>
                 <div class="text-4xl font-extrabold text-gray-900">{count_missing(df_missing)}</div>
                 <div class="text-xs font-semibold text-red-600 mt-2">-5 <i class="fas fa-arrow-down ml-1"></i></div>
@@ -341,7 +366,7 @@ def main():
         search_input = st.text_input(
             "📍 Search Map Location:",
             key="location_input_key",
-            placeholder="e.g., London, UK or 10 Downing St",
+            placeholder="e.g., Madrid, Spain or Calle Mayor 1",
             label_visibility="collapsed"
         )
 
@@ -355,7 +380,8 @@ def main():
                 if coords:
                     st.session_state.center_coords = coords
                 else:
-                    st.session_state.center_coords = (19.4326, -99.1332) # Fall back to CDMX
+                    # Fallback to Madrid center
+                    st.session_state.center_coords = (MADRID_LAT, MADRID_LON)
                     if st.session_state.search_location:
                         st.warning(f"Could not find coordinates for: **{st.session_state.search_location}**")
 

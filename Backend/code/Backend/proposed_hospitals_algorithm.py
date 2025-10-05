@@ -20,7 +20,7 @@ def load_data_from_django():
     )
 
     # Convert queryset (list of dicts) into Polars DataFrame
-    df = pl.DataFrame(list(qs))
+    df = pl.DataFrame(list(qs.filter(is_suggested=False)))
 
     return df
 
@@ -85,7 +85,7 @@ def insert_proposed_hospitals_into_object():
         ).rename({
         "proposed_lat": "latitude",
         "proposed_lon": "longitude",
-    }).drop_nulls()
+    }).filter(pl.col("city_district") != "DISTRITO")
 
 
 
