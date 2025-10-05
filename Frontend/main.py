@@ -8,9 +8,8 @@ from geopy.exc import GeocoderTimedOut, GeocoderServiceError
 import requests
 import json
 from typing import List, Tuple
-# from model import MedicalCenter
 
-# --- MADRID CONSTANTS (NEW) ---
+# --- MADRID CONSTANTS ---
 MADRID_LAT = 40.4168  # Central latitude of Madrid
 MADRID_LON = -3.7038 # Central longitude of Madrid
 # Ranges to generate simulated points near Madrid
@@ -18,56 +17,110 @@ MADRID_LAT_RANGE = (40.35, 40.50)
 MADRID_LON_RANGE = (-3.80, -3.60)
 # -------------------------------------
 
-# --- MedicalCenter Definition (Placeholder) ---
+# --- MedicalCenter Definition ---
+
 class MedicalCenter:
-    """Placeholder class to simulate the backend object."""
-    def __init__(self, lat: float, lon: float):
-        self.latitude = lat
-        self.longitude = lon
+    def __init__(self, type_of_center: str = "Hospital", accesibility: str = "Total", name: str = "Center", city: str = "Madrid",
+                 city_district: str = "Centro", latitude: float = MADRID_LAT, longitude: float = MADRID_LON,
+                 population_in_district: int = 100000, street: str = "Default St", is_suggested: bool = False,
+                 lat: float = None, lon: float = None): # Added lat/lon as aliases for compatibility
+
+        # Prioritize 'latitude'/'longitude' if provided, fall back to 'lat'/'lon'
+        self.latitude = latitude if latitude is not None else lat
+        self.longitude = longitude if longitude is not None else lon
+
+        # Ensure name and street are present for Green points in the map popup
+        self.name = name
+        self.street = street
+
+        self.type_of_center = type_of_center
+        self.accesibility = accesibility
+        self.city = city
+        self.city_district = city_district
+        self.population_in_district = population_in_district
+        self.is_suggested = is_suggested
+
+    def __str__(self):
+        return self.name
 
     @staticmethod
-    def from_json_list(json_data: str) -> List['MedicalCenter']:
+    def from_json_list(json_data: str, is_missing: bool = False) -> List['MedicalCenter']:
         """
-        Processes the JSON string from the backend into a list of MedicalCenter objects.
+        Processes the JSON string into a list of MedicalCenter objects.
         If parsing fails, it returns simulated data (fallback).
         """
         centers: List['MedicalCenter'] = []
         try:
             data = json.loads(json_data)
 
+            if not isinstance(data, list):
+                raise ValueError("JSON data is not a list.")
+
             for item in data:
-                if 'latitude' in item and 'longitude' in item:
-                    centers.append(MedicalCenter(
-                        lat=float(item['latitude']),
-                        lon=float(item['longitude'])
-                    ))
+                # Use a dictionary comprehension to filter out None or missing values
+                # and use default values defined in __init__
+
+                # Use 'lat'/'lon' or 'latitude'/'longitude'
+                lat = float(item.get('latitude') or item.get('lat', MADRID_LAT))
+                lon = float(item.get('longitude') or item.get('lon', MADRID_LON))
+
+                # Extract necessary string data, using defaults for non-critical fields
+                name = item.get('name', f"Suggested Center {len(centers) + 1}" if is_missing else f"Hospital {len(centers) + 1}")
+                street = item.get('street', "Unknown Street")
+
+                centers.append(MedicalCenter(
+                    latitude=lat,
+                    longitude=lon,
+                    name=name,
+                    street=street,
+                    is_suggested=is_missing,
+                    # Pass other expected fields if available
+                    type_of_center=item.get('type_of_center', 'Hospital'),
+                    accesibility=item.get('accesibility', 'Total'),
+                    city=item.get('city', 'Madrid'),
+                    city_district=item.get('city_district', 'Centro'),
+                    population_in_district=item.get('population_in_district', 100000)
+                ))
 
             if centers:
                 return centers
 
-            st.warning("Backend returned a valid but empty list. Using simulated data.")
+            # If JSON was valid but empty
+            if is_missing:
+                st.warning("Backend returned a valid but empty list for Missing Hospitals. Using simulated data.")
+            else:
+                st.warning("Backend returned a valid but empty list for Existing Hospitals. Using simulated data.")
 
-        except json.JSONDecodeError as e:
-            st.error(f"JSON Decode Error, backend response is invalid: {e}")
+        except (json.JSONDecodeError, ValueError) as e:
+            if json_data: # Only show error if data was received but couldn't be decoded/processed
+                st.error(f"JSON Decode/Process Error, backend response is invalid: {e}")
         except Exception as e:
             st.error(f"Error processing JSON structure: {e}")
 
 
-        # Fallback: Generate simulated data (Missing Hospitals - Red)
-        num_simulated = 5
+        # Fallback: Generate simulated data
+        num_simulated = 5 if is_missing else 30
         simulated_centers = []
-        # Using Madrid ranges
         lats = np.random.uniform(MADRID_LAT_RANGE[0], MADRID_LAT_RANGE[1], num_simulated)
         lons = np.random.uniform(MADRID_LON_RANGE[0], MADRID_LON_RANGE[1], num_simulated)
-        for lat, lon in zip(lats, lons):
-            simulated_centers.append(MedicalCenter(lat, lon))
+        for i, (lat, lon) in enumerate(zip(lats, lons)):
+            center_name = f"Simulated {'Missing' if is_missing else 'Hospital'} {i+1}"
+            street_name = f"Simulated St {i+1}, Madrid"
+            simulated_centers.append(MedicalCenter(
+                latitude=lat,
+                longitude=lon,
+                name=center_name,
+                street=street_name,
+                is_suggested=is_missing
+            ))
 
         return simulated_centers
 # ---------------------------------------------------------------------------------
 
 # --- CONSTANTS & UTILITY FUNCTIONS ---
 
-API_ENDPOINT = "http://Backend:8081/api/get_proposed_medical_centers"
+API_ENDPOINT_MISSING = "http://Backend:8081/api/get_proposed_medical_centers"
+API_ENDPOINT_HOSPITALS = "http://Backend:8081/api/get_medical_centers"
 
 @st.cache_data
 def geocode_location(location_name: str) -> Tuple[float, float] | None:
@@ -87,38 +140,76 @@ def geocode_location(location_name: str) -> Tuple[float, float] | None:
 # --- DATA ACQUISITION & PROCESSING FUNCTIONS ---
 
 @st.cache_data
-def generate_hospitals(num_hospitals=20, lat_range=MADRID_LAT_RANGE, lon_range=MADRID_LON_RANGE, street_address="Av. Central, #123") -> pd.DataFrame:
+def fetch_and_process_hospitals(url: str) -> pd.DataFrame:
     """
-    Generates simulated hospital data points (Green points), using Madrid ranges by default.
+    Fetches existing medical centers (Hospitals - Green) from the API.
+    Returns a DataFrame for mapping.
     """
-    data = {
-        "name": [f"Hospital {i+1}" for i in range(num_hospitals)],
-        "lat": np.random.uniform(lat_range[0], lat_range[1], num_hospitals),
-        "lon": np.random.uniform(lon_range[0], lon_range[1], num_hospitals),
-        "street": ["Madrid St, #123"] * num_hospitals # Update street address to reflect Madrid
-    }
-    return pd.DataFrame(data)
-
-def fetch_and_process_missing_points(url: str) -> Tuple[pd.DataFrame, str]:
-    """
-    Fetches proposed medical centers from the API.
-    Returns a DataFrame for mapping and the raw JSON data string.
-    """
-    st.info("Attempting to get data from the backend...")
+    st.info("Attempting to get Existing Hospitals (Green) from the backend...")
     raw_json_data = ""
 
     try:
         # 1. Fetch data from the API endpoint
         response = requests.get(url, timeout=40)
-        response.raise_for_status()  # Raise an exception for bad status codes (4xx or 5xx)
-        json_data = response.text
-        st.code(response.text, language='json')
-        st.success("✅ Datos obtenidos exitosamente del backend.")
-        # Opcional: mostrar la respuesta JSON (comentar en producción)
-        # st.code(response.text, language='json')
+        response.raise_for_status()
+        raw_json_data = response.text
+
+        st.success("✅ Existing Hospitals successfully retrieved from the backend.")
 
         # 2. Convert JSON string to list of MedicalCenter objects
-        centers: List[MedicalCenter] = MedicalCenter.from_json_list(raw_json_data)
+        centers: List[MedicalCenter] = MedicalCenter.from_json_list(raw_json_data, is_missing=False)
+
+        # 3. Convert list of objects to a DataFrame for map rendering
+        if not centers:
+            # This case is handled by the fallback inside MedicalCenter.from_json_list
+            return pd.DataFrame({"lat": [], "lon": [], "name": [], "street": []})
+
+        data = {
+            "lat": [center.latitude for center in centers],
+            "lon": [center.longitude for center in centers],
+            "name": [center.name for center in centers],
+            "street": [center.street for center in centers]
+        }
+        return pd.DataFrame(data)
+
+    except requests.exceptions.RequestException as e:
+        st.warning(f"❌ Connection or API response failed for Existing Hospitals. Using simulated data: {e}")
+
+        # Fallback to simulated data via MedicalCenter.from_json_list(empty string)
+        centers = MedicalCenter.from_json_list("", is_missing=False)
+
+        data = {
+            "lat": [center.latitude for center in centers],
+            "lon": [center.longitude for center in centers],
+            "name": [center.name for center in centers],
+            "street": [center.street for center in centers]
+        }
+        return pd.DataFrame(data)
+
+    except Exception as e:
+        st.error(f"❌ Error processing received Hospital data: {e}")
+        return pd.DataFrame({"lat": [], "lon": [], "name": [], "street": []})
+
+
+@st.cache_data
+def fetch_and_process_missing_points(url: str) -> Tuple[pd.DataFrame, str]:
+    """
+    Fetches proposed medical centers (Missing Hospitals - Red) from the API.
+    Returns a DataFrame for mapping and the raw JSON data string.
+    """
+    st.info("Attempting to get Missing Hospitals (Red) from the backend...")
+    raw_json_data = ""
+
+    try:
+        # 1. Fetch data from the API endpoint
+        response = requests.get(url, timeout=40)
+        response.raise_for_status()
+        raw_json_data = response.text
+
+        st.success("✅ Missing Hospitals successfully retrieved from the backend.")
+
+        # 2. Convert JSON string to list of MedicalCenter objects
+        centers: List[MedicalCenter] = MedicalCenter.from_json_list(raw_json_data, is_missing=True)
 
         # 3. Convert list of objects to a DataFrame for map rendering
         if not centers:
@@ -131,9 +222,10 @@ def fetch_and_process_missing_points(url: str) -> Tuple[pd.DataFrame, str]:
         return pd.DataFrame(data), raw_json_data
 
     except requests.exceptions.RequestException as e:
-        st.warning(f"❌ Connection or API response failed. Using simulated data: {e}")
+        st.warning(f"❌ Connection or API response failed for Missing Hospitals. Using simulated data: {e}")
 
-        centers = MedicalCenter.from_json_list("")
+        # Fallback to simulated data via MedicalCenter.from_json_list(empty string)
+        centers = MedicalCenter.from_json_list("", is_missing=True)
 
         data = {
             "lat": [c.latitude for c in centers],
@@ -142,7 +234,7 @@ def fetch_and_process_missing_points(url: str) -> Tuple[pd.DataFrame, str]:
         return pd.DataFrame(data), f"Connection Failed: {e}"
 
     except Exception as e:
-        st.error(f"❌ Error processing received data: {e}")
+        st.error(f"❌ Error processing received Missing Hospital data: {e}")
         return pd.DataFrame({"lat": [], "lon": []}), f"Processing Error: {e}"
 
 # --- METRICS FUNCTIONS ---
@@ -180,9 +272,13 @@ def create_map(df_hospitals: pd.DataFrame, df_missing: pd.DataFrame, point_filte
     # Draw Hospitals (Green Cross Icon)
     if point_filter in ["All", "Hospitals (Green)"]:
         for _, row in df_hospitals.iterrows():
+            # Ensure name and street columns exist in df_hospitals
+            name = row.get('name', 'Hospital')
+            street = row.get('street', 'Address Unknown')
+
             popup_text = f"""
-            <b>{row['name']}</b><br>
-            Street: {row['street']}<br>
+            <b>{name}</b><br>
+            Street: {street}<br>
             Lat: {row['lat']:.4f}<br>
             Lon: {row['lon']:.4f}
             """
@@ -222,10 +318,12 @@ def main():
     if 'raw_backend_log' not in st.session_state:
         st.session_state.raw_backend_log = ""
 
-    # SESSION CACHE LOGIC FOR BACKEND DATA
+    # --- DATA LOADING ---
+
+    # 1. Load Missing Hospitals (Red Points)
     if st.session_state.df_missing_cached is None:
-        with st.spinner("⏳ Connecting to backend and loading missing hospitals..."):
-            df_missing_data, log_data = fetch_and_process_missing_points(API_ENDPOINT)
+        with st.spinner("⏳ Connecting to backend and loading missing hospitals (Red)..."):
+            df_missing_data, log_data = fetch_and_process_missing_points(API_ENDPOINT_MISSING)
 
         st.session_state.df_missing_cached = df_missing_data
         st.session_state.raw_backend_log = log_data
@@ -233,6 +331,11 @@ def main():
     # Use cached data
     df_missing = st.session_state.df_missing_cached
     raw_backend_log = st.session_state.raw_backend_log
+
+    # 2. Load Existing Hospitals (Green Points)
+    # This function uses st.cache_data, so we don't need manual session state caching here.
+    with st.spinner("⏳ Connecting to backend and loading existing hospitals (Green)..."):
+        df_hospitals = fetch_and_process_hospitals(API_ENDPOINT_HOSPITALS)
     # -------------------------------------------------------------
 
     # --- INYECTAR TAILWIND CDN Y OVERRIDES CSS ---
@@ -274,6 +377,7 @@ def main():
     with st.sidebar:
         col_logo, col_title = st.columns([1, 2])
         with col_logo:
+            # Use a placeholder image path if the actual image is not present
             st.image("images/logo.png", use_container_width=True)
         with col_title:
             st.markdown(
@@ -314,14 +418,13 @@ def main():
 
         # --- RAW DATA LOG ---
         st.markdown("<hr class='border-gray-600'>", unsafe_allow_html=True)
-        st.subheader("Backend Raw Data Log")
+        st.subheader("Backend Raw Data Log (Missing)")
 
+        # Log only the raw data from the missing points endpoint
         st.code(raw_backend_log, language='json')
 
 
     # --- MAIN CONTENT ---
-
-    df_hospitals = generate_hospitals(30)
 
     # 1. Metrics
     st.markdown("<h2 class='text-2xl font-semibold text-gray-900 mb-4'>Summary Metrics</h2>", unsafe_allow_html=True)
@@ -356,6 +459,7 @@ def main():
 
     # Search Controls and Action Buttons
     with col_search_controls:
+        # Use a hidden label and placeholder for better aesthetics
         search_input = st.text_input(
             "📍 Search Map Location:",
             key="location_input_key",
@@ -378,17 +482,18 @@ def main():
                     if st.session_state.search_location:
                         st.warning(f"Could not find coordinates for: **{st.session_state.search_location}**")
 
+        # Placeholder icons for aesthetic
         with cog_col:
             st.markdown(
-                """<i class="fas fa-cog text-gray-600 hover:bg-gray-100 p-2 rounded-lg cursor-pointer transition duration-200"></i>""", unsafe_allow_html=True
+                """<div class='flex justify-center items-center h-full'><i class="fas fa-cog text-gray-600 hover:bg-gray-100 p-2 rounded-lg cursor-pointer transition duration-200"></i></div>""", unsafe_allow_html=True
             )
         with download_col:
             st.markdown(
-                """<i class="fas fa-download text-gray-600 hover:bg-gray-100 p-2 rounded-lg cursor-pointer transition duration-200"></i>""", unsafe_allow_html=True
+                """<div class='flex justify-center items-center h-full'><i class="fas fa-download text-gray-600 hover:bg-gray-100 p-2 rounded-lg cursor-pointer transition duration-200"></i></div>""", unsafe_allow_html=True
             )
         with filter_col:
             st.markdown(
-                """<i class="fas fa-filter text-gray-600 hover:bg-gray-100 p-2 rounded-lg cursor-pointer transition duration-200"></i>""", unsafe_allow_html=True
+                """<div class='flex justify-center items-center h-full'><i class="fas fa-filter text-gray-600 hover:bg-gray-100 p-2 rounded-lg cursor-pointer transition duration-200"></i></div>""", unsafe_allow_html=True
             )
 
 
@@ -408,8 +513,6 @@ def main():
 
     folium_map = create_map(df_hospitals, df_missing, point_filter, search_center=st.session_state.center_coords)
     st_folium(folium_map, width='100%', height=500)
-
-    st.markdown('</div>', unsafe_allow_html=True)
 
 # --- RUN APP ---
 
