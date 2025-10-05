@@ -88,7 +88,7 @@ def fetch_and_process_missing_points(url: str) -> pd.DataFrame:
         response = requests.get(url, timeout=40)
         response.raise_for_status()  # Raise an exception for bad status codes (4xx or 5xx)
         json_data = response.text
-
+        st.code(response.text, language='json')
         st.success("✅ Datos obtenidos exitosamente del backend.")
         # Opcional: mostrar la respuesta JSON (comentar en producción)
         # st.code(response.text, language='json')

@@ -90,4 +90,3 @@ def insert_proposed_hospitals_into_object():
 
 
     insert_into_django(proposals_polars_final)
-    
