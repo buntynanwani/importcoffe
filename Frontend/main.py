@@ -110,10 +110,12 @@ def fetch_and_process_missing_points(url: str) -> Tuple[pd.DataFrame, str]:
     try:
         # 1. Fetch data from the API endpoint
         response = requests.get(url, timeout=40)
-        response.raise_for_status()
-        raw_json_data = response.text
-
-        st.success("✅ Data successfully retrieved from the backend.")
+        response.raise_for_status()  # Raise an exception for bad status codes (4xx or 5xx)
+        json_data = response.text
+        st.code(response.text, language='json')
+        st.success("✅ Datos obtenidos exitosamente del backend.")
+        # Opcional: mostrar la respuesta JSON (comentar en producción)
+        # st.code(response.text, language='json')
 
         # 2. Convert JSON string to list of MedicalCenter objects
         centers: List[MedicalCenter] = MedicalCenter.from_json_list(raw_json_data)
